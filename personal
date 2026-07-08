@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Personal Terminal</title>
+<style>
+  :root{
+    --bg:#0A0B0D;
+    --panel:#14161A;
+    --panel-border:#24262B;
+    --text:#E8E9EA;
+    --text-dim:#8A8D93;
+    --accent:#FF9F0A;
+    --positive:#30D158;
+    --negative:#FF453A;
+    --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:hidden;}
+
+  /* ---------- Header strip ---------- */
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; border-bottom:1px solid var(--panel-border);
+    background:linear-gradient(180deg, #0D0E10, #0A0B0D);
+  }
+  .brand{display:flex; align-items:baseline; gap:10px;}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--positive);box-shadow:0 0 8px var(--positive);}
+  .brand h1{font-size:14px; letter-spacing:3px; font-weight:600; margin:0; color:var(--text-dim); text-transform:uppercase;}
+  .clock{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right;}
+  .clock .time{font-size:22px; font-weight:600; color:var(--accent);}
+  .clock .date{font-size:11px; color:var(--text-dim); letter-spacing:1px;}
+
+  /* ---------- Grid ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:1px;
+    background:var(--panel-border);
+  }
+  @media (max-width:900px){ .grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:560px){ .grid{grid-template-columns:1fr;} }
+
+  .card{
+    background:var(--panel);
+    padding:16px 18px;
+    min-height:150px;
+    display:flex; flex-direction:column;
+  }
+  .card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .card-title{font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); font-weight:600;}
+  .status-dot{width:6px;height:6px;border-radius:50%; flex-shrink:0;}
+  .status-ok{background:var(--positive);}
+  .status-stale{background:var(--accent);}
+  .status-err{background:var(--negative);}
+  .card-body{flex:1; display:flex; flex-direction:column; justify-content:center;}
+  .big{font-family:var(--mono); font-size:32px; font-weight:600; font-variant-numeric:tabular-nums;}
+  .sub{font-size:13px; color:var(--text-dim); margin-top:4px;}
+  .row{display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--panel-border); font-size:13px;}
+  .row:last-child{border-bottom:none;}
+  .up{color:var(--positive);} .down{color:var(--negative);}
+  .updated{font-size:10px; color:var(--text-dim); margin-top:8px; font-family:var(--mono);}
+  a{color:var(--accent); text-decoration:none;}
+
+  /* Priorities */
+  .todo-input{display:flex; gap:6px; margin-bottom:8px;}
+  .todo-input input{flex:1; background:#0D0E10; border:1px solid var(--panel-border); color:var(--text); padding:8px; border-radius:6px; font-size:14px; font-family:var(--sans);}
+  .todo-input button{background:var(--accent); border:none; color:#0A0B0D; font-weight:700; padding:8px 12px; border-radius:6px; font-size:14px;}
+  .todo-list{list-style:none; margin:0; padding:0; overflow-y:auto; max-height:160px;}
+  .todo-item{display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--panel-border); font-size:14px;}
+  .todo-item.done .label{text-decoration:line-through; color:var(--text-dim);}
+  .todo-item .label{flex:1;}
+  .todo-item .del{color:var(--negative); font-size:12px; cursor:pointer; padding:2px 6px;}
+  .check{width:16px;height:16px;border:1px solid var(--text-dim);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .check.done{background:var(--positive); border-color:var(--positive); color:#0A0B0D; font-size:11px;}
+
+  .full{grid-column: 1 / -1;}
+  .news-item{padding:6px 0; border-bottom:1px solid var(--panel-border); font-size:13px; line-height:1.4;}
+  .news-item:last-child{border-bottom:none;}
+  .news-time{color:var(--text-dim); font-family:var(--mono); font-size:11px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="dot"></div>
+    <h1>Personal Terminal</h1>
+  </div>
+  <div class="clock">
+    <div class="time" id="clockTime">--:--:--</div>
+    <div class="date" id="clockDate">-- --- ----</div>
+  </div>
+</header>
+
+<div class="grid">
+
+  <!-- WEATHER -->
+  <div class="card">
+    <div class="card-head"><span class="card-title">Weather &amp; Umbrella</span><span class="status-dot" id="dot-weather"></span></div>
+    <div class="card-body" id="weather-body">
+      <div class="big">--°</div>
+      <div class="sub">Loading…</div>
+    </div>
+    <div class="updated" id="upd-weather">—</div>
+  </div>
+
+  <!-- MTR -->
+  <div class="card">
+    <div class="card-head"><span class="card-title">MTR Status</span><span class="status-dot" id="dot-mtr"></span></div>
+    <div class="card-body" id="mtr-body">
+      <div class="sub">Loading…</div>
+    </div>
+    <div class="updated" id="upd-mtr">—</div>
+  </div>
+
+  <!-- ARSENAL -->
+  <div class="card">
+    <div class="card-head"><span class="card-title">Arsenal Next Fixture</span><span class="status-dot" id="dot-arsenal"></span></div>
+    <div class="card-body" id="arsenal-body">
+      <div class="sub">Loading…</div>
+    </div>
+    <div class="updated" id="upd-arsenal">—</div>
+  </div>
+
+  <!-- MARKET -->
+  <div class="card">
+    <div class="card-head"><span class="card-title">US Markets (Overnight)</span><span class="status-dot" id="dot-market"></span></div>
+    <div class="card-body" id="market-body">
+      <div class="sub">Loading…</div>
+    </div>
+    <div class="updated" id="upd-market">—</div>
+  </div>
+
+  <!-- PRIORITIES -->
+  <div class="card">
+    <div class="card-head"><span class="card-title">Today's Priorities</span></div>
+    <div class="card-body" style="justify-content:flex-start;">
+      <div class="todo-input">
+        <input type="text" id="todoInput" placeholder="Add a priority…">
+        <button onclick="addTodo()">Add</button>
+      </div>
+      <ul class="todo-list" id="todoList"></ul>
+    </div>
+  </div>
+
+  <!-- HK NEWS -->
+  <div class="card full">
+    <div class="card-head"><span class="card-title">HK News</span><span class="status-dot" id="dot-news"></span></div>
+    <div class="card-body" id="news-body" style="justify-content:flex-start;">
+      <div class="sub">Loading…</div>
+    </div>
+    <div class="updated" id="upd-news">—</div>
+  </div>
+
+</div>
+
+<script>
+/* =========================================================================
+   CONFIG — edit these to match your home station / team / location
+   ========================================================================= */
+const CONFIG = {
+  // Hong Kong coordinates (default: Central). Change if you want a different spot.
+  weather: { lat: 22.2793, lon: 114.1628, tz: "Asia/Hong_Kong" },
+
+  // MTR "Next Train" API needs a LINE code + STATION code.
+  // Full code list (data dictionary): https://opendata.mtr.com.hk/doc/Next_Train_DataDictionary_v1.7.pdf
+  // Example below is Admiralty on the Island Line (ISL / ADM). Edit to your home station.
+  mtr: [
+    { line: "ISL", sta: "ADM", label: "Island Ln · Admiralty" },
+    { line: "TWL", sta: "ADM", label: "Tsuen Wan Ln · Admiralty" }
+  ],
+
+  // TheSportsDB free-tier key + Arsenal's team ID (133604 is Arsenal FC on TheSportsDB)
+  arsenal: { apiKey: "123", teamId: "133604" },
+
+  // Free RSS→JSON conversion (keyless, rate-limited). Swap the RSS url for any HK feed.
+  news: { rssToJson: "https://api.rss2json.com/v1/api.json?rss_url=", feedUrl: "https://news.rthk.hk/rthk/en/rss/e_expressnews.xml" },
+
+  // Refresh intervals (ms)
+  refresh: { weather: 10*60*1000, mtr: 2*60*1000, arsenal: 60*60*1000, market: 10*60*1000, news: 15*60*1000 }
+};
+
+/* ---------- Clock ---------- */
+function tickClock(){
+  const now = new Date();
+  const opts = { timeZone: CONFIG.weather.tz, hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' };
+  document.getElementById('clockTime').textContent = now.toLocaleTimeString('en-GB', opts) + ' HKT';
+  document.getElementById('clockDate').textContent = now.toLocaleDateString('en-GB', { timeZone: CONFIG.weather.tz, weekday:'short', day:'2-digit', month:'short', year:'numeric' }).toUpperCase();
+}
+setInterval(tickClock, 1000); tickClock();
+
+function setStatus(id, state){ const el = document.getElementById('dot-'+id); if(el) el.className = 'status-dot status-'+state; }
+function setUpdated(id){ document.getElementById('upd-'+id).textContent = 'Updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+async function withTimeout(promise, ms=8000){ return Promise.race([promise, new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms))]); }
+
+/* ---------- Weather (Open-Meteo, keyless) ---------- */
+async function fetchWeather(){
+  try{
+    const {lat, lon, tz} = CONFIG.weather;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,weather_code&daily=precipitation_probability_max,temperature_2m_max,temperature_2m_min&timezone=${encodeURIComponent(tz)}`;
+    const res = await withTimeout(fetch(url));
+    const d = await res.json();
+    const cur = d.current, day = d.daily;
+    const pop = day.precipitation_probability_max[0];
+    const needUmbrella = pop >= 40 || cur.precipitation > 0;
+    document.getElementById('weather-body').innerHTML = `
+      <div class="big">${Math.round(cur.temperature_2m)}°C</div>
+      <div class="sub">H ${Math.round(day.temperature_2m_max[0])}° · L ${Math.round(day.temperature_2m_min[0])}° · Rain chance ${pop}%</div>
+      <div class="sub" style="margin-top:6px; color:${needUmbrella?'var(--accent)':'var(--positive)'}; font-weight:600;">
+        ${needUmbrella ? '☔ Bring an umbrella' : '🌂 No umbrella needed'}
+      </div>`;
+    setStatus('weather','ok'); setUpdated('weather');
+  }catch(e){
+    document.getElementById('weather-body').innerHTML = `<div class="sub">Unable to load weather.</div>`;
+    setStatus('weather','err');
+  }
+}
+
+/* ---------- MTR (data.gov.hk Next Train API, keyless) ---------- */
+async function fetchMTR(){
+  const body = document.getElementById('mtr-body');
+  try{
+    let html = '';
+    let anyAlert = false;
+    for(const s of CONFIG.mtr){
+      const url = `https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=${s.line}&sta=${s.sta}&lang=en`;
+      const res = await withTimeout(fetch(url));
+      const d = await res.json();
+      if(d.status === 0){
+        anyAlert = true;
+        html += `<div class="row"><span>${s.label}</span><span class="down">⚠ Service alert</span></div>`;
+      } else {
+        const key = `${s.line}-${s.sta}`;
+        const up = d.data && d.data[key] && d.data[key].UP && d.data[key].UP[0];
+        const mins = up ? up.ttnt : '--';
+        html += `<div class="row"><span>${s.label}</span><span class="${d.isdelay==='Y' ? 'down':'up'}">${mins==='--' ? 'No data' : mins+' min'}</span></div>`;
+      }
+    }
+    body.innerHTML = html || '<div class="sub">No stations configured.</div>';
+    setStatus('mtr', anyAlert ? 'stale' : 'ok'); setUpdated('mtr');
+  }catch(e){
+    body.innerHTML = `<div class="sub">Unable to reach MTR feed. <a href="https://www.mtr.com.hk/en/customer/services/system_status.html" target="_blank">Check status page →</a></div>`;
+    setStatus('mtr','err');
+  }
+}
+
+/* ---------- Arsenal (TheSportsDB, free key) ---------- */
+async function fetchArsenal(){
+  const body = document.getElementById('arsenal-body');
+  try{
+    const {apiKey, teamId} = CONFIG.arsenal;
+    const url = `https://www.thesportsdb.com/api/v1/json/${apiKey}/eventsnext.php?id=${teamId}`;
+    const res = await withTimeout(fetch(url));
+    const d = await res.json();
+    const ev = d.events && d.events[0];
+    if(!ev){ body.innerHTML = '<div class="sub">No upcoming fixture found.</div>'; setStatus('arsenal','stale'); return; }
+    const home = ev.strHomeTeam, away = ev.strAwayTeam;
+    const dt = new Date(`${ev.dateEvent}T${ev.strTime || '00:00:00'}Z`);
+    const local = dt.toLocaleString('en-GB', { timeZone: CONFIG.weather.tz, weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+    body.innerHTML = `
+      <div class="big" style="font-size:20px;">${home} vs ${away}</div>
+      <div class="sub">${ev.strLeague || ''}</div>
+      <div class="sub" style="margin-top:6px; color:var(--accent); font-weight:600;">${local} HKT</div>`;
+    setStatus('arsenal','ok'); setUpdated('arsenal');
+  }catch(e){
+    body.innerHTML = '<div class="sub">Unable to load fixture data.</div>';
+    setStatus('arsenal','err');
+  }
+}
+
+/* ---------- US Markets (Stooq CSV, keyless) ---------- */
+async function fetchMarket(){
+  const body = document.getElementById('market-body');
+  const symbols = [ {s:'^spx', label:'S&P 500'}, {s:'^dji', label:'Dow Jones'}, {s:'^ndq', label:'Nasdaq'} ];
+  try{
+    let html = '';
+    let ok = false;
+    for(const sym of symbols){
+      try{
+        const url = `https://stooq.com/q/l/?s=${sym.s}&f=sd2t2ohlcv&h&e=csv`;
+        const res = await withTimeout(fetch(url));
+        const text = await res.text();
+        const lines = text.trim().split('\n');
+        const cols = lines[1].split(',');
+        const close = parseFloat(cols[6]);
+        const open = parseFloat(cols[3]);
+        const pct = ((close - open) / open * 100).toFixed(2);
+        const dir = pct >= 0 ? 'up' : 'down';
+        html += `<div class="row"><span>${sym.label}</span><span class="${dir}">${close.toLocaleString()} (${pct>=0?'+':''}${pct}%)</span></div>`;
+        ok = true;
+      }catch(inner){
+        html += `<div class="row"><span>${sym.label}</span><span class="sub">n/a</span></div>`;
+      }
+    }
+    body.innerHTML = html;
+    setStatus('market', ok ? 'ok' : 'err'); setUpdated('market');
+  }catch(e){
+    body.innerHTML = '<div class="sub">Market data unavailable.</div>';
+    setStatus('market','err');
+  }
+}
+
+/* ---------- HK News (RSS via rss2json, keyless) ---------- */
+async function fetchNews(){
+  const body = document.getElementById('news-body');
+  try{
+    const url = CONFIG.news.rssToJson + encodeURIComponent(CONFIG.news.feedUrl);
+    const res = await withTimeout(fetch(url));
+    const d = await res.json();
+    const items = (d.items || []).slice(0, 6);
+    body.innerHTML = items.map(it => {
+      const t = new Date(it.pubDate).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+      return `<div class="news-item"><span class="news-time">${t}</span> — ${it.title}</div>`;
+    }).join('') || '<div class="sub">No headlines available.</div>';
+    setStatus('news','ok'); setUpdated('news');
+  }catch(e){
+    body.innerHTML = '<div class="sub">Unable to load news feed.</div>';
+    setStatus('news','err');
+  }
+}
+
+/* ---------- Priorities (localStorage — persists on this iPad/browser) ---------- */
+function loadTodos(){ return JSON.parse(localStorage.getItem('pt_todos') || '[]'); }
+function saveTodos(t){ localStorage.setItem('pt_todos', JSON.stringify(t)); }
+function renderTodos(){
+  const todos = loadTodos();
+  const list = document.getElementById('todoList');
+  list.innerHTML = todos.map((t, i) => `
+    <li class="todo-item ${t.done?'done':''}">
+      <span class="check ${t.done?'done':''}" onclick="toggleTodo(${i})">${t.done?'✓':''}</span>
+      <span class="label">${t.text}</span>
+      <span class="del" onclick="delTodo(${i})">✕</span>
+    </li>`).join('');
+}
+function addTodo(){
+  const input = document.getElementById('todoInput');
+  if(!input.value.trim()) return;
+  const todos = loadTodos();
+  todos.push({ text: input.value.trim(), done: false });
+  saveTodos(todos); input.value=''; renderTodos();
+}
+function toggleTodo(i){ const t = loadTodos(); t[i].done = !t[i].done; saveTodos(t); renderTodos(); }
+function delTodo(i){ const t = loadTodos(); t.splice(i,1); saveTodos(t); renderTodos(); }
+document.getElementById('todoInput').addEventListener('keydown', e => { if(e.key === 'Enter') addTodo(); });
+renderTodos();
+
+/* ---------- Boot + refresh loops ---------- */
+fetchWeather(); fetchMTR(); fetchArsenal(); fetchMarket(); fetchNews();
+setInterval(fetchWeather, CONFIG.refresh.weather);
+setInterval(fetchMTR, CONFIG.refresh.mtr);
+setInterval(fetchArsenal, CONFIG.refresh.arsenal);
+setInterval(fetchMarket, CONFIG.refresh.market);
+setInterval(fetchNews, CONFIG.refresh.news);
+</script>
+</body>
+</html>
