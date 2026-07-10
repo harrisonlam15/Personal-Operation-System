@@ -231,12 +231,22 @@ function setStatus(id, state){ const el = document.getElementById('dot-'+id); if
 function setUpdated(id){ document.getElementById('upd-'+id).textContent = 'Updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
 async function withTimeout(promise, ms=8000){ return Promise.race([promise, new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms))]); }
 
+/* Cache-busting: append a unique timestamp param so Safari / the CORS proxy can't
+   return a stale cached response on each refresh (fixes "time updates but data doesn't"). */
+function cacheBust(url){
+  var sep = url.indexOf('?') >= 0 ? '&' : '?';
+  return url + sep + '_t=' + Date.now();
+}
+function noCacheFetch(url, ms){
+  return withTimeout(fetch(cacheBust(url), { cache: 'no-store' }), ms || 8000);
+}
+
 /* ---------- Weather (Open-Meteo, keyless) ---------- */
 async function fetchWeather(){
   try{
     const {lat, lon, tz} = CONFIG.weather;
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,weather_code&daily=precipitation_probability_max,temperature_2m_max,temperature_2m_min&timezone=${encodeURIComponent(tz)}`;
-    const res = await withTimeout(fetch(url));
+    const res = await noCacheFetch(url);
     const d = await res.json();
     const cur = d.current, day = d.daily;
     const pop = day.precipitation_probability_max[0];
@@ -265,7 +275,7 @@ async function fetchMTR(){
     let anyAlert = false;
     for(const s of CONFIG.mtr){
       const url = `https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=${s.line}&sta=${s.sta}&lang=en`;
-      const res = await withTimeout(fetch(url));
+      const res = await noCacheFetch(url);
       const d = await res.json();
       if(d.status === 0){
         anyAlert = true;
@@ -308,7 +318,7 @@ async function resolveBusStop(route, fromName, towards){
   let dirs = ['outbound', 'inbound'];
   if(towards){
     try{
-      const info = await (await withTimeout(fetch(`https://rt.data.gov.hk/v2/transport/citybus/route/CTB/${route}`))).json();
+      const info = await (await noCacheFetch(`https://rt.data.gov.hk/v2/transport/citybus/route/CTB/${route}`)).json();
       const destEn = (info.data && info.data.dest_en || '').toLowerCase();
       // Citybus convention: outbound = orig -> dest. If the route's listed destination
       // matches "towards", the outbound direction heads there; otherwise it's inbound.
@@ -319,11 +329,11 @@ async function resolveBusStop(route, fromName, towards){
   for(const dir of dirs){
     try{
       const rsUrl = `https://rt.data.gov.hk/v2/transport/citybus/route-stop/CTB/${route}/${dir}`;
-      const rs = await (await withTimeout(fetch(rsUrl))).json();
+      const rs = await (await noCacheFetch(rsUrl)).json();
       const stops = rs.data || [];
       for(const st of stops){
         const infoUrl = `https://rt.data.gov.hk/v2/transport/citybus/stop/${st.stop}`;
-        const info = await (await withTimeout(fetch(infoUrl))).json();
+        const info = await (await noCacheFetch(infoUrl)).json();
         const name = (info.data && info.data.name_en || '').toLowerCase();
         if(name.includes(fromName.toLowerCase())){
           const found = { stopId: st.stop, dir: dir === 'outbound' ? 'O' : 'I' };
@@ -345,7 +355,7 @@ async function fetchBus(){
       const stop = await resolveBusStop(b.route, b.from, b.towards);
       if(!stop){ html += `<div class="row"><span>${b.label}</span><span class="sub">Stop not found</span></div>`; continue; }
       const etaUrl = `https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${stop.stopId}/${b.route}`;
-      const d = await (await withTimeout(fetch(etaUrl))).json();
+      const d = await (await noCacheFetch(etaUrl)).json();
       const now = Date.now();
       const etas = (d.data || [])
         .filter(e => e.dir === stop.dir && e.eta)
@@ -378,7 +388,7 @@ async function fetchArsenal(){
   try{
     const {apiKey, teamId} = CONFIG.arsenal;
     const url = `https://www.thesportsdb.com/api/v1/json/${apiKey}/eventsnext.php?id=${teamId}`;
-    const res = await withTimeout(fetch(url));
+    const res = await noCacheFetch(url);
     const d = await res.json();
     const ev = d.events && d.events[0];
     if(!ev){ body.innerHTML = '<div class="sub">No upcoming fixture found.</div>'; setStatus('arsenal','stale'); return; }
@@ -410,9 +420,9 @@ async function fetchArsenal(){
 function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
 async function fetchOneQuote(symbol){
-  var target = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?interval=1d&range=1d';
+  var target = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?interval=1d&range=1d&_t=' + Date.now();
   var url = CONFIG.corsProxy + encodeURIComponent(target);
-  var res = await withTimeout(fetch(url), 10000);
+  var res = await noCacheFetch(url, 10000);
   var d = await res.json();
   var meta = d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta;
   if(!meta || typeof meta.regularMarketPrice !== 'number') throw new Error('no price');
@@ -467,7 +477,7 @@ async function fetchHourly(){
   try{
     const {lat, lon, tz} = CONFIG.weather;
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=${encodeURIComponent(tz)}&forecast_days=7`;
-    const res = await withTimeout(fetch(url));
+    const res = await noCacheFetch(url);
     const d = await res.json();
     const day = d.daily;
     let cells = '';
